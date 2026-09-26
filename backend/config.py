@@ -25,7 +25,7 @@ SQLITE_PATH = os.path.join(BASE_DIR, "data", "computer_shop.db")
 UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
 FRONTEND_DIST = os.path.normpath(os.path.join(BASE_DIR, "..", "frontend", "dist"))
 
-SECRET_KEY = os.environ["SECRET_KEY"]
+SECRET_KEY = os.environ.get("SECRET_KEY", "my_computer_shopppp_secret_710910810")
 
 # --- CORS (Stage 2: strong CORS security) -----------------------------------
 # Nothing below is a secret and nothing is hard-coded: the trusted frontend
