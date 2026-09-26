@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Naly,munib is an online PC parts store. Shop CPUs, GPUs, motherboards, memory, storage and gaming peripherals with fast shipping and honest advice." />
+    <meta name="theme-color" content="#0f172a" />
+    <meta property="og:title" content="Naly,munib | PC Parts &amp; Gaming Hardware" />
+    <meta property="og:description" content="Premium PC components and gaming gear for builders. CPUs, GPUs, motherboards, memory, storage and peripherals." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/uploads/logo.svg" />
+    <link rel="icon" type="image/svg+xml" href="/uploads/logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap" />
+    <title>Naly,munib | PC Parts &amp; Gaming Hardware</title>
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("computer_shop_theme");
+          if (saved === "light") {
+            document.documentElement.setAttribute("data-theme", "light");
+            document.querySelector('meta[name="theme-color"]').setAttribute("content", "#f8fafc");
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

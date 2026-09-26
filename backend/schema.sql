@@ -1,0 +1,1 @@
+-- Naly,munib - MySQL schema (reference).

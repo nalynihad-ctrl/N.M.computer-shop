@@ -1,0 +1,9 @@
+node_modules/
+frontend/dist/
+backend/data/
+backend/static/uploads/*.jpg
+backend/static/uploads/*.jpeg
+backend/static/uploads/*.png
+__pycache__/
+*.pyc
+backend/.env 

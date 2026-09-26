@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" role="img" aria-label="Monitor">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 H0 V40" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="600" height="600" fill="url(#bg)"/>
+  <rect width="600" height="600" fill="url(#grid)"/>
+  <rect width="600" height="600" fill="url(#glow)"/>
+  <circle cx="600" cy="0" r="220" fill="#000000" fill-opacity="0.10"/>
+  
+          <rect x="140" y="160" width="320" height="210" rx="12" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="170" y="190" width="260" height="150" rx="6" fill="#ffffff" fill-opacity="0.25"/>
+          <line x1="300" y1="370" x2="300" y2="420" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="235" y1="425" x2="365" y2="425" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="50%" y="92%" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif"
+        font-size="30" font-weight="700" fill="#ffffff" fill-opacity="0.95">Monitor</text>
+</svg>
