@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useLanguage } from "../context/LanguageContext";
 import { api } from "../api";
 
 export default function Register() {
+  const { t } = useLanguage();
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -19,18 +21,22 @@ export default function Register() {
   const submit = async (e) => {
     e.preventDefault();
     if (form.password !== form.confirm) {
-      setError("Passwords do not match.");
+      setError(t("register.mismatch"));
       return;
     }
     setBusy(true);
     setError("");
     try {
-      const data = await api.register({ name: form.name, email: form.email, password: form.password });
+      const data = await api.register({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+      });
       signIn(data.user, data.token);
-      toast.success("Account created. Welcome!");
+      toast.success(t("toast.accountCreated"));
       navigate("/profile");
     } catch (err) {
-      setError(err.message || "Registration failed.");
+      setError(err.message || t("register.failed"));
     } finally {
       setBusy(false);
     }
@@ -39,30 +45,59 @@ export default function Register() {
   return (
     <div className="page container auth-center">
       <form className="auth-card" onSubmit={submit}>
-        <h1>Create Account</h1>
-        <p className="muted">Create your Naly,munib account to track orders and check out faster.</p>
+        <h1>{t("register.title")}</h1>
+        <p className="muted">{t("register.subtitle")}</p>
         {error && <div className="notice error">{error}</div>}
         <label className="field">
-          <span>Full name</span>
-          <input className="input" required value={form.name} onChange={set("name")} placeholder="Alex Rivera" />
+          <span>{t("field.fullName")}</span>
+          <input
+            className="input"
+            required
+            value={form.name}
+            onChange={set("name")}
+            placeholder={t("placeholder.name")}
+          />
         </label>
         <label className="field">
-          <span>Email</span>
-          <input className="input" type="email" required value={form.email} onChange={set("email")} placeholder="you@example.com" />
+          <span>{t("field.email")}</span>
+          <input
+            className="input"
+            type="email"
+            required
+            value={form.email}
+            onChange={set("email")}
+            placeholder="you@example.com"
+            dir="ltr"
+          />
         </label>
         <label className="field">
-          <span>Password</span>
-          <input className="input" type="password" required minLength="4" value={form.password} onChange={set("password")} placeholder="At least 4 characters" />
+          <span>{t("field.password")}</span>
+          <input
+            className="input"
+            type="password"
+            required
+            minLength="4"
+            value={form.password}
+            onChange={set("password")}
+            placeholder={t("register.passwordHint")}
+          />
         </label>
         <label className="field">
-          <span>Confirm password</span>
-          <input className="input" type="password" required value={form.confirm} onChange={set("confirm")} placeholder="Repeat password" />
+          <span>{t("field.confirmPassword")}</span>
+          <input
+            className="input"
+            type="password"
+            required
+            value={form.confirm}
+            onChange={set("confirm")}
+            placeholder={t("register.repeatPassword")}
+          />
         </label>
         <button className="btn btn-primary block" disabled={busy}>
-          {busy ? "Creating account…" : "Register"}
+          {busy ? t("register.submitting") : t("register.submit")}
         </button>
         <p className="muted center">
-          Already have an account? <Link to="/login">Login</Link>
+          {t("register.haveAccount")} <Link to="/login">{t("login.title")}</Link>
         </p>
       </form>
     </div>

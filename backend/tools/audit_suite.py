@@ -21,6 +21,7 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import app, db, limiter
 import config
 import cors_config
+import i18n
 import rate_limit
 import security_headers
 import validation as v
@@ -508,7 +509,17 @@ r = C.post("/api/checkout", json={
     "items": [{"productId": pid, "quantity": 1}]}, headers=AUTH)
 check("journey: checkout", r.status_code == 201, "%s %s" % (r.status_code,
                                                             r.get_data(as_text=True)[:90]))
-oid = (jbody(r) or {}).get("orderId")
+checkout_body = jbody(r) or {}
+# A client that keys off the canonical status must get the same pair from the
+# checkout response as from the order payloads, or it has to special-case its own
+# request. The code is also what the stylesheet slug is derived from.
+check("journey: checkout returns a canonical statusCode",
+      checkout_body.get("statusCode") in i18n.ORDER_STATUSES,
+      str(checkout_body.get("statusCode")))
+check("journey: checkout status is the translation of that code",
+      checkout_body.get("status") == i18n.order_status("en", checkout_body.get("statusCode")),
+      "%r / %r" % (checkout_body.get("status"), checkout_body.get("statusCode")))
+oid = checkout_body.get("orderId")
 
 r = C.get("/api/orders", headers=AUTH)
 check("journey: order list", r.status_code == 200, str(r.status_code))

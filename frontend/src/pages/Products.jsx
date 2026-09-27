@@ -1,23 +1,43 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
 import { api } from "../api";
+import { useLanguage } from "../context/LanguageContext";
 
 export default function Products({ categoryMode }) {
+  const { language, t } = useLanguage();
   const { category: paramCategory } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [products, setProducts] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // The category in the URL is always the canonical English key, so it is
+  // stable across languages and can be handed straight to the API filter. Only
+  // its display name needs translating, which the category list below provides.
   const activeCategory = categoryMode ? paramCategory : searchParams.get("category") || "";
   const search = searchParams.get("search") || "";
   const sort = searchParams.get("sort") || "popular";
   const priceMin = searchParams.get("minPrice") || "";
   const priceMax = searchParams.get("maxPrice") || "";
   const selectedBrands = (searchParams.get("brand") || "").split(",").filter(Boolean);
+  const brandKey = selectedBrands.join(",");
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .getCategories()
+      .then((data) => {
+        if (alive) setCategories(data);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [language]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,24 +48,21 @@ export default function Products({ categoryMode }) {
       sort,
       minPrice: priceMin || undefined,
       maxPrice: priceMax || undefined,
-      brand: selectedBrands.length ? selectedBrands.join(",") : undefined,
+      brand: brandKey || undefined,
     };
     try {
       const data = await api.getProducts(params);
       setProducts(data);
-      const b = await api.getBrands();
-      setBrands(
-        activeCategory ? b : b
-      );
-      if (!activeCategory && !search && data.length === 0) {
-        setProducts([]);
-      }
+      setBrands(await api.getBrands());
     } catch (e) {
       setError(e.message || "Failed to load products.");
     } finally {
       setLoading(false);
     }
-  }, [activeCategory, search, sort, priceMin, priceMax, selectedBrands.join(",")]);
+    // `language` is a dependency because the product names, descriptions and
+    // spec labels come from the server in the active language: without it, a
+    // language switch would leave the previous language's text on screen.
+  }, [activeCategory, search, sort, priceMin, priceMax, brandKey, language]);
 
   useEffect(() => {
     load();
@@ -68,17 +85,35 @@ export default function Products({ categoryMode }) {
     update({ brand: next.join(",") });
   };
 
+  // Display name for the key in the URL. Falls back to the key itself, which
+  // only happens for a category the API no longer knows about.
+  const categoryName = useMemo(() => {
+    const found = categories.find((c) => c.key === activeCategory);
+    return found ? found.name : activeCategory;
+  }, [categories, activeCategory]);
+
   const title = activeCategory
-    ? `Category: ${activeCategory}`
+    ? t("products.titleCategory", { category: categoryName })
     : search
-    ? `Search results for "${search}"`
-    : "All Products";
+    ? t("products.titleSearch", { search })
+    : t("products.titleAll");
 
   return (
     <div className="products-page container">
       <nav className="breadcrumb">
-        <Link to="/">Home</Link> / {activeCategory ? <Link to="/products">Products</Link> : <span>Products</span>}
-        {activeCategory && <span> / {activeCategory}</span>}
+        <Link to="/">{t("nav.home")}</Link>
+        {activeCategory ? (
+          <>
+            {" / "}
+            <Link to="/products">{t("nav.allProducts")}</Link>
+            <span> / {categoryName}</span>
+          </>
+        ) : (
+          <>
+            {" / "}
+            <span>{t("nav.allProducts")}</span>
+          </>
+        )}
       </nav>
 
       <h1 className="page-title">{title}</h1>
@@ -86,22 +121,29 @@ export default function Products({ categoryMode }) {
       <div className="products-layout">
         <aside className="filters">
           <div className="filter-group">
-            <h3>Category</h3>
-            <Link to="/products" className={!activeCategory ? "active" : ""}>All Products</Link>
+            <h3>{t("filters.category")}</h3>
+            <Link to="/products" className={!activeCategory ? "active" : ""}>
+              {t("filters.allProducts")}
+            </Link>
             {!categoryMode && (
               <select
                 value={activeCategory}
                 onChange={(e) => update({ category: e.target.value })}
                 className="input"
+                aria-label={t("filters.category")}
               >
-                <option value="">All categories</option>
-                <CatOptions />
+                <option value="">{t("filters.allCategories")}</option>
+                {categories.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             )}
           </div>
 
           <div className="filter-group">
-            <h3>Brand</h3>
+            <h3>{t("filters.brand")}</h3>
             {brands.map((b) => (
               <label key={b} className="checkbox">
                 <input
@@ -115,26 +157,31 @@ export default function Products({ categoryMode }) {
           </div>
 
           <div className="filter-group">
-            <h3>Price</h3>
+            <h3>{t("filters.price")}</h3>
             <div className="price-range">
               <input
                 type="number"
-                placeholder="Min"
+                placeholder={t("filters.min")}
+                aria-label={t("filters.min")}
                 className="input"
                 value={priceMin}
                 onChange={(e) => update({ minPrice: e.target.value })}
               />
-              <span>to</span>
+              <span>{t("filters.to")}</span>
               <input
                 type="number"
-                placeholder="Max"
+                placeholder={t("filters.max")}
+                aria-label={t("filters.max")}
                 className="input"
                 value={priceMax}
                 onChange={(e) => update({ maxPrice: e.target.value })}
               />
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => update({ minPrice: "", maxPrice: "" })}>
-              Clear prices
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => update({ minPrice: "", maxPrice: "" })}
+            >
+              {t("filters.clearPrices")}
             </button>
           </div>
         </aside>
@@ -146,25 +193,38 @@ export default function Products({ categoryMode }) {
                 className="btn btn-ghost btn-sm"
                 onClick={() => setSearchParams({ sort: sort || "" }, { replace: true })}
               >
-                Clear search
+                {t("toolbar.clearSearch")}
               </button>
             ) : (
-              <span className="toolbar-count">{products.length} products</span>
+              <span className="toolbar-count">
+                {t("toolbar.productCount", { count: products.length })}
+              </span>
             )}
             <select
               className="input sort-select"
               value={sort}
+              aria-label={t("sort.label")}
               onChange={(e) => update({ sort: e.target.value })}
             >
-              <option value="popular">Sort: Most Popular</option>
-              <option value="newest">Sort: Newest</option>
-              <option value="price_asc">Sort: Price (Low → High)</option>
-              <option value="price_desc">Sort: Price (High → Low)</option>
-              <option value="name">Sort: Name A-Z</option>
+              <option value="popular">
+                {t("sort.label")}: {t("sort.popular")}
+              </option>
+              <option value="newest">
+                {t("sort.label")}: {t("sort.newest")}
+              </option>
+              <option value="price_asc">
+                {t("sort.label")}: {t("sort.priceAsc")}
+              </option>
+              <option value="price_desc">
+                {t("sort.label")}: {t("sort.priceDesc")}
+              </option>
+              <option value="name">
+                {t("sort.label")}: {t("sort.name")}
+              </option>
             </select>
           </div>
 
-          {error && <div className="notice">Something went wrong while loading products.</div>}
+          {error && <div className="notice">{t("products.loadError")}</div>}
 
           {!error && loading && (
             <div className="product-grid">
@@ -176,9 +236,11 @@ export default function Products({ categoryMode }) {
 
           {!error && !loading && products.length === 0 && (
             <div className="empty-state">
-              <p>No products found.</p>
-              <p className="muted">Try searching for another product or clearing the filters.</p>
-              <Link to="/products" className="btn btn-primary">View all products</Link>
+              <p>{t("products.empty")}</p>
+              <p className="muted">{t("products.emptyHint")}</p>
+              <Link to="/products" className="btn btn-primary">
+                {t("products.viewAll")}
+              </Link>
             </div>
           )}
 
@@ -192,19 +254,5 @@ export default function Products({ categoryMode }) {
         </div>
       </div>
     </div>
-  );
-}
-
-function CatOptions() {
-  const [categories, setCategories] = useState([]);
-  useEffect(() => {
-    api.getCategories().then((c) => setCategories(c.map((x) => x.name))).catch(() => {});
-  }, []);
-  return (
-    <>
-      {categories.map((c) => (
-        <option key={c} value={c}>{c}</option>
-      ))}
-    </>
   );
 }

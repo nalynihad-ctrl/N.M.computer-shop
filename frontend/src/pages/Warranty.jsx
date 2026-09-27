@@ -1,34 +1,31 @@
+import { useLanguage } from "../context/LanguageContext";
+
 export default function Warranty() {
+  const { t } = useLanguage();
+
   return (
     <div className="page container static-page">
-      <h1 className="page-title">Warranty</h1>
-      <p>
-        Every product we sell comes with a manufacturer warranty. Standard
-        warranty terms range from 1 to 10 years depending on the brand and
-        component, and are always listed on the product page.
-      </p>
-      <h2>What we cover</h2>
+      <h1 className="page-title">{t("warranty.title")}</h1>
+      <p>{t("warranty.intro")}</p>
+
+      <h2>{t("warranty.coverTitle")}</h2>
       <ul>
-        <li>Manufacturing defects and hardware failures under normal use.</li>
-        <li>Fan, pump, and sensor failures on cooling products.</li>
-        <li>Memory and storage failures covered by lifetime warranties.</li>
+        {t("warranty.cover").map((item) => (
+          <li key={item}>{item}</li>
+        ))}
       </ul>
-      <h2>What is not covered</h2>
+
+      <h2>{t("warranty.notCoveredTitle")}</h2>
       <ul>
-        <li>Damage from overclocking, physical damage, or liquid spills.</li>
-        <li>Normal wear and tear on cables and consumables.</li>
-        <li>Products modified or opened in ways that break factory seals.</li>
+        {t("warranty.notCovered").map((item) => (
+          <li key={item}>{item}</li>
+        ))}
       </ul>
-      <h2>How to start a claim</h2>
-      <p>
-        Contact us with your order number, the product name, and a description
-        of the issue. We will help you start a claim with the brand — and for
-        many items we will handle the whole process for you and ship a
-        replacement directly.
-      </p>
-      <p className="muted">
-        Most warranty claims are resolved within 5–10 business days.
-      </p>
+
+      <h2>{t("warranty.claimTitle")}</h2>
+      <p>{t("warranty.claim")}</p>
+
+      <p className="muted">{t("warranty.closing")}</p>
     </div>
   );
 }

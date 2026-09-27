@@ -517,3 +517,32 @@ def csv_list(value, field, *, max_items, max_item_len):
             )
         out.append(part)
     return out
+
+
+def csv_int_list(value, field, *, max_items):
+    """Validate a comma-separated query parameter into a bounded list of ids.
+
+    Used by the cart's "give me these products back" lookup. Each part has to be a
+    positive integer within the id range, so the generated ``IN (?, ?, ...)``
+    clause is built from a bounded set of validated integers and can never carry
+    a fragment of anything else into the statement.
+    """
+    raw = csv_list(
+        value, field, max_items=max_items, max_item_len=MAX_ID
+    )
+    out = []
+    for part in raw:
+        if not part.isdigit():
+            raise ValidationError(
+                field, "Field '%s' must contain whole numbers only." % field
+            )
+        number = int(part)
+        if number < 1 or number > MAX_ID:
+            raise ValidationError(
+                field,
+                "Field '%s' must be between 1 and %d." % (field, MAX_ID),
+            )
+        out.append(number)
+    return out
+
+

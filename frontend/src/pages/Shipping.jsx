@@ -1,34 +1,33 @@
+import { useLanguage } from "../context/LanguageContext";
+
 export default function Shipping() {
+  const { t } = useLanguage();
+
   return (
     <div className="page container static-page">
-      <h1 className="page-title">Shipping</h1>
-      <p>
-        We ship from our Chicago warehouse to the entire United States, plus
-        select international destinations. Most orders are processed within 1
-        business day.
-      </p>
-      <h2>Delivery options</h2>
+      <h1 className="page-title">{t("shipping.title")}</h1>
+      <p>{t("shipping.intro")}</p>
+      <h2>{t("shipping.optionsTitle")}</h2>
       <ul>
-        <li><strong>Standard (3–5 business days):</strong> $9.99 flat rate, or free on orders over $100.</li>
-        <li><strong>Express (1–2 business days):</strong> $19.99 flat rate, calculated at checkout.</li>
-        <li><strong>In-store pickup:</strong> Free at 411 Wabash Ave, Suite 3, Chicago, IL.</li>
+        <li>
+          <strong>{t("shipping.standardLabel")}:</strong> {t("shipping.standardBody")}
+        </li>
+        <li>
+          <strong>{t("shipping.expressLabel")}:</strong> {t("shipping.expressBody")}
+        </li>
+        <li>
+          <strong>{t("shipping.pickupLabel")}:</strong> {t("shipping.pickupBody")}
+        </li>
       </ul>
-      <h2>Order tracking</h2>
-      <p>
-        Once your order ships you will receive a confirmation email with a
-        tracking number. You can also view live status in your order history
-        after logging in.
-      </p>
-      <h2>Shipping notes</h2>
+      <h2>{t("shipping.trackingTitle")}</h2>
+      <p>{t("shipping.tracking")}</p>
+      <h2>{t("shipping.notesTitle")}</h2>
       <ul>
-        <li>Fragile items are double-boxed and padded.</li>
-        <li>Hazardous materials (batteries bundled with hardware) are shipped via ground only.</li>
-        <li>PO Boxes are only supported for standard deliveries.</li>
-        <li>Some oversized items may require a signature on delivery.</li>
+        {t("shipping.notes").map((note) => (
+          <li key={note}>{note}</li>
+        ))}
       </ul>
-      <p className="muted">
-        Need help with a shipment? Contact us and we will track it down for you.
-      </p>
+      <p className="muted">{t("shipping.closing")}</p>
     </div>
   );
 }

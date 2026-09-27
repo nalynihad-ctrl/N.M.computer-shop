@@ -21,6 +21,7 @@ import FAQ from "./pages/FAQ";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import NotFound from "./pages/NotFound";
+import { useLanguage } from "./context/LanguageContext";
 
 function ScrollToTop() {
   const { pathname, search } = useLocation();
@@ -31,13 +32,15 @@ function ScrollToTop() {
 }
 
 export default function App() {
+  const { t } = useLanguage();
+
   return (
     <>
-      <a className="skip-link" href="#main">Skip to content</a>
+      <a className="skip-link" href="#main">{t("a11y.skipToContent")}</a>
       <ScrollToTop />
       <Header />
       <CategoryMenu />
-      <main className="main" id="main" aria-label="Main content">
+      <main className="main" id="main" aria-label={t("a11y.mainContent")}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />

@@ -16,6 +16,7 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 import config
 import cors_config
+import i18n
 import rate_limit
 import security_headers
 import validation as v
@@ -23,6 +24,29 @@ from db import Database
 from seed_data import CATEGORY_META, build_products
 
 app = Flask(__name__)
+
+# --------------------------------------------------------------------------
+# Localisation
+# --------------------------------------------------------------------------
+def lang():
+    """The language for this request: ``?lang=``, else Accept-Language, else en.
+
+    Resolved per request rather than held in module state so that a single
+    process can serve all three languages without any session state.
+    """
+    return i18n.current_language()
+
+
+def api_error(message, status=400, field=None, **extra):
+    """Build a localised JSON error body.
+
+    The English sentence stays the key, so a message with no translation falls
+    through unchanged and the English response is byte-identical to before.
+    """
+    payload = {"error": i18n.error_message(lang(), message), "field": field}
+    payload.update(extra)
+    return jsonify(payload), status
+
 
 # --------------------------------------------------------------------------
 # Stage 3 - input validation limits
@@ -62,15 +86,18 @@ app.config["JSON_SORT_KEYS"] = False
 @app.errorhandler(v.ValidationError)
 def handle_validation_error(err):
     """Turn a rejected field into a clean 400 with no internals leaked."""
-    return err.to_response()
+    response, status = err.to_response()
+    # Localising here rather than in validation.py keeps that module free of any
+    # request/transport concern, and the body is rebuilt from the parsed JSON
+    # rather than from a raw string, so nothing is re-serialised by hand.
+    body = response.get_json() or {}
+    body["error"] = i18n.validation_message(lang(), body.get("error"))
+    return jsonify(body), status
 
 
 @app.errorhandler(RequestEntityTooLarge)
 def handle_too_large(_err):
-    return (
-        jsonify({"error": "Request body is too large.", "field": "body"}),
-        413,
-    )
+    return api_error("Request body is too large.", 413, field="body")
 
 
 @app.errorhandler(HTTPException)
@@ -83,10 +110,7 @@ def handle_http_exception(err):
     """
     if not request.path.startswith("/api/"):
         return err
-    return (
-        jsonify({"error": err.name, "field": None}),
-        err.code or 500,
-    )
+    return api_error(err.name, err.code or 500)
 
 
 @app.after_request
@@ -143,16 +167,7 @@ def handle_unexpected_error(err):
         exc_info=True,
     )
     if request.path.startswith("/api/"):
-        return (
-            jsonify(
-                {
-                    "error": "Internal Server Error",
-                    "field": None,
-                    "incident": incident_id,
-                }
-            ),
-            500,
-        )
+        return api_error("Internal Server Error", 500, incident=incident_id)
     return (
         Response(
             "Internal Server Error",
@@ -247,7 +262,7 @@ def parse_json_field(value, default):
         return default
 
 
-def product_dict(row):
+def product_dict(row, language=i18n.DEFAULT_LANGUAGE):
     # Stage 3 - output encoding for URL-typed fields. The frontend drops this
     # value straight into `<img src={product.image} />`, so a stored
     # `javascript:` or `data:` URL would be an XSS sink. safe_media_path allows
@@ -257,12 +272,19 @@ def product_dict(row):
     image = v.safe_media_path(
         row["image"], "image", fallback="/uploads/accessories.svg"
     )
+    name, description = i18n.product_text(
+        language, row["name"], row["description"]
+    )
     return {
         "id": int(row["id"]),
-        "name": row["name"],
+        "name": name,
         "brand": row["brand"],
+        # `category` stays the canonical English key so that the /category/...
+        # route, the ?category= filter and the cart keep working in any
+        # language; `categoryName` is the label to actually render.
         "category": row["category"],
-        "description": row["description"],
+        "categoryName": i18n.category_name(language, row["category"]),
+        "description": description,
         "price": round(float(row["price"]), 2),
         "oldPrice": round(float(row["old_price"] or 0), 2),
         "discount": int(row["discount"] or 0),
@@ -273,7 +295,9 @@ def product_dict(row):
         ],
         "stock": int(row["stock"] or 0),
         "rating": float(row["rating"] or 0),
-        "specs": parse_json_field(row["specs"], {}),
+        "specs": i18n.localize_specs(
+            language, parse_json_field(row["specs"], {})
+        ),
         "createdAt": row["created_at"],
     }
 
@@ -388,11 +412,16 @@ def categories():
                   MAX(price) AS max_price
            FROM products GROUP BY category ORDER BY category"""
     )
+    language = lang()
     out = []
     for r in rows:
         out.append(
             {
-                "name": r["category"],
+                # `name` is the label to render, so it follows the request
+                # language; `key` is the stable English value the client sends
+                # back as ?category= and puts in the /category/... route.
+                "name": i18n.category_name(language, r["category"]),
+                "key": r["category"],
                 "productCount": int(r["product_count"]),
                 "image": "/uploads/" + CATEGORY_META.get(r["category"], "accessories.svg"),
                 "minPrice": round(float(r["min_price"]), 2),
@@ -441,16 +470,30 @@ def products():
         required=False, minimum=v.MIN_PAGE_SIZE, maximum=v.MAX_PAGE_SIZE,
         default=None,
     )
-    if (
-        min_price is not None
-        and max_price is not None
-        and min_price > max_price
-    ):
-        return jsonify({"error": "minPrice cannot be greater than maxPrice."}), 400
+    # The cart holds product ids, not localized names, so it asks for its lines
+    # back by id whenever the language changes. Without this a cart built in one
+    # language would keep showing the other language's product names, because the
+    # stored snapshot is a copy of whichever language happened to be active when
+    # the item was added.
+    ids = v.csv_int_list(
+        request.args.get("ids"), "ids",
+        max_items=v.MAX_CART_ITEMS,
+    )
+    if min_price is not None and max_price is not None and min_price > max_price:
+        return api_error("minPrice cannot be greater than maxPrice.")
+
+    language = lang()
 
     # --- Stage 3: WHERE values are always bound with `?` placeholders -------
     where, params = [], []
+    if ids:
+        # `ids` is already a bounded list of validated integers, so the
+        # placeholder count comes from the list and every value is bound.
+        where.append("id IN (%s)" % ",".join("?" * len(ids)))
+        params.extend(ids)
     if category:
+        # Always the canonical English key, never a localized label, so the
+        # filter keeps working and stays shareable.
         where.append("category = ?")
         params.append(category)
     if brand_values:
@@ -459,16 +502,32 @@ def products():
         where.append("brand IN (%s)" % ",".join("?" * len(brand_values)))
         params.extend(brand_values)
     if search:
-        # LIKE metacharacters are escaped and the pattern is bound, so a search
-        # term is matched literally instead of widening the query.
-        like = "%" + v.escape_like(search.lower()) + "%"
-        where.append(
-            "(LOWER(name) LIKE ? ESCAPE '!' OR LOWER(brand) LIKE ? ESCAPE '!' "
-            "OR LOWER(category) LIKE ? ESCAPE '!' "
-            "OR LOWER(description) LIKE ? ESCAPE '!' "
-            "OR LOWER(specs) LIKE ? ESCAPE '!')"
-        )
-        params.extend([like] * 5)
+        # The SQL LIKE runs against the English columns, so a shopper typing an
+        # Arabic or Kurdish word would match nothing. When that happens the
+        # translated text is searched instead and its matches narrow the query.
+        # Only one of the two branches adds a WHERE clause, never both: the
+        # localized pass must be able to find rows the English LIKE misses, and
+        # the English pass is the fallback so an English term still works
+        # while a non-English language is selected.
+        localized_ids = []
+        if language != i18n.DEFAULT_LANGUAGE:
+            localized_ids = i18n.localized_matches(language, db.query(
+                "SELECT id, name, brand, category, description, specs FROM products"
+            ), search)
+        if localized_ids:
+            where.append("id IN (%s)" % ",".join("?" * len(localized_ids)))
+            params.extend(localized_ids)
+        else:
+            # LIKE metacharacters are escaped and the pattern is bound, so a
+            # search term is matched literally instead of widening the query.
+            like = "%" + v.escape_like(search.lower()) + "%"
+            where.append(
+                "(LOWER(name) LIKE ? ESCAPE '!' OR LOWER(brand) LIKE ? ESCAPE '!' "
+                "OR LOWER(category) LIKE ? ESCAPE '!' "
+                "OR LOWER(description) LIKE ? ESCAPE '!' "
+                "OR LOWER(specs) LIKE ? ESCAPE '!')"
+            )
+            params.extend([like] * 5)
     if min_price is not None:
         where.append("price >= ?")
         params.append(min_price)
@@ -497,15 +556,15 @@ def products():
         params.append(limit)
 
     rows = db.query(sql, params)
-    return jsonify([product_dict(r) for r in rows])
+    return jsonify([product_dict(r, language) for r in rows])
 
 
 @app.route("/api/products/<int:product_id>")
 def product(product_id):
     row = db.query_one("SELECT * FROM products WHERE id = ?", (product_id,))
     if not row:
-        return jsonify({"error": "Product not found"}), 404
-    return jsonify(product_dict(row))
+        return api_error("Product not found", 404)
+    return jsonify(product_dict(row, lang()))
 
 
 # --------------------------------------------------------------------------
@@ -525,7 +584,7 @@ def register():
 
     existing = db.query_one("SELECT id FROM users WHERE email = ?", (email,))
     if existing:
-        return jsonify({"error": "An account with this email already exists."}), 409
+        return api_error("An account with this email already exists.", 409)
 
     token = secrets.token_hex(24)
     now = datetime.utcnow().isoformat(sep=" ")
@@ -553,7 +612,7 @@ def login():
     # parameter and is still rejected unless its expiry is valid and future.
     user = db.query_one("SELECT * FROM users WHERE email = ?", (email,))
     if not user or not verify_password(password, user["password_hash"]):
-        return jsonify({"error": "Invalid email or password."}), 401
+        return api_error("Invalid email or password.", 401)
 
     # Rotate the token on every successful login so a leaked token has a
     # bounded lifetime and cannot be replayed after the next sign-in.
@@ -569,7 +628,7 @@ def login():
 def me():
     user = current_user()
     if not user:
-        return jsonify({"error": "Not authenticated."}), 401
+        return api_error("Not authenticated.", 401)
     return jsonify(user_dict(user))
 
 
@@ -648,22 +707,22 @@ def checkout():
         # raise, and the lookup stays a bound parameter.
         row = db.query_one("SELECT * FROM products WHERE id = ?", (pid,))
         if not row:
-            return jsonify({"error": "A product in your cart no longer exists."}), 400
+            return api_error("A product in your cart no longer exists.")
         # Stock is the real ceiling: a cart cannot claim more units than exist.
         available = int(row["stock"] or 0)
         if qty > available:
-            return jsonify(
-                {"error": "Not enough stock for a product in your cart."}
-            ), 400
+            return api_error("Not enough stock for a product in your cart.")
         price = float(row["price"])
         line_total = round(price * qty, 2)
         subtotal += line_total
+        # The English name is stored, so the order keeps rendering in whatever
+        # language is requested later rather than being frozen at checkout.
         order_items.append(
             (pid, row["name"], price, qty, line_total, row["image"], available)
         )
 
     if not order_items:
-        return jsonify({"error": "Your cart is empty."}), 400
+        return api_error("Your cart is empty.")
 
     shipping = (
         0.0
@@ -696,18 +755,29 @@ def checkout():
         )
         db.execute("UPDATE products SET stock = ? WHERE id = ?", (max(0, stock - qty), pid))
 
-    return jsonify({"orderId": order_id, "total": total, "status": "Pending"}), 201
+    return jsonify(
+        {
+            "orderId": order_id,
+            "total": total,
+            "status": i18n.order_status(lang(), "Pending"),
+            # Same pair as the order payloads above: the label is for display,
+            # the code is for branching, so a client that keys off `statusCode`
+            # does not have to special-case the response to its own checkout.
+            "statusCode": "Pending",
+        }
+    ), 201
 
 
 @app.route("/api/orders")
 def orders():
     user = current_user()
     if not user:
-        return jsonify({"error": "Please log in to view your orders."}), 401
+        return api_error("Please log in to view your orders.", 401)
     rows = db.query("SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC", (user["id"],))
+    language = lang()
     result = []
     for r in rows:
-        detail = order_detail(r)
+        detail = order_detail(r, language)
         result.append(detail)
     return jsonify(result)
 
@@ -731,14 +801,14 @@ def order(order_id):
     # the caller owns it. "Missing" and "not yours" deliberately share one 404
     # so a caller cannot use the status code to discover which order ids exist.
     if not user:
-        return jsonify({"error": "Please log in to view your orders."}), 401
+        return api_error("Please log in to view your orders.", 401)
     row = db.query_one("SELECT * FROM orders WHERE id = ?", (order_id,))
     if not row or row["user_id"] != user["id"]:
-        return jsonify({"error": "Order not found."}), 404
-    return jsonify(order_detail(row))
+        return api_error("Order not found.", 404)
+    return jsonify(order_detail(row, lang()))
 
 
-def order_detail(row):
+def order_detail(row, language=i18n.DEFAULT_LANGUAGE):
     items = db.query(
         """SELECT product_id, name, price, quantity, subtotal, image
            FROM order_items WHERE order_id = ?""",
@@ -751,6 +821,11 @@ def order_detail(row):
         item["image"] = v.safe_media_path(
             item.get("image"), "image", fallback="/uploads/accessories.svg"
         )
+        # Line items are stored with the English product name so that an order
+        # placed in one language still reads correctly in another; a name with
+        # no product row behind it (a deleted product) passes through as-is.
+        localized, _ = i18n.product_text(language, item.get("name") or "", "")
+        item["name"] = localized
     return {
         "id": int(row["id"]),
         "fullName": row["full_name"],
@@ -759,12 +834,16 @@ def order_detail(row):
         "address": row["address"],
         "city": row["city"],
         "country": row["country"],
-        "paymentMethod": row["payment_method"],
+        # `paymentMethodCode` and `statusCode` carry the stored enum values so a
+        # client can still branch on them without string-matching a translation.
+        "paymentMethod": i18n.payment_method(language, row["payment_method"]),
+        "paymentMethodCode": row["payment_method"],
         "subtotal": round(float(row["subtotal"]), 2),
         "shipping": round(float(row["shipping"]), 2),
         "discount": round(float(row["discount"]), 2),
         "total": round(float(row["total"]), 2),
-        "status": row["status"],
+        "status": i18n.order_status(language, row["status"]),
+        "statusCode": row["status"],
         "createdAt": row["created_at"],
         "items": items,
     }
@@ -791,9 +870,9 @@ def spa(path):
     # client that probes the API root now gets the same JSON 404 as every other
     # unknown /api path instead of being handed a page of HTML.
     if path == "api" or path.startswith("api/"):
-        return jsonify({"error": "Not found"}), 404
+        return api_error("Not found", 404)
     if path == "uploads" or path.startswith("uploads/"):
-        return jsonify({"error": "Not found"}), 404
+        return api_error("Not found", 404)
     index = os.path.join(config.FRONTEND_DIST, "index.html")
     # Stage 3 - only a plain, relative asset path may be served. Rejecting
     # absolute paths, dot-segments and control characters here means a crafted
@@ -805,14 +884,19 @@ def spa(path):
             or "\x00" in path
             or "\\" in path
         ):
-            return jsonify({"error": "Not found"}), 404
+            return api_error("Not found", 404)
         asset = os.path.join(config.FRONTEND_DIST, path)
         if os.path.isfile(asset):
             return send_from_directory(config.FRONTEND_DIST, path)
     if os.path.isfile(index):
         return send_from_directory(config.FRONTEND_DIST, "index.html")
+    # This branch is a developer hint, not a user-facing page, but it is still
+    # localised so a non-English developer is not told what to do in English.
     return Response(
-        "Frontend not built yet. Run `npm install && npm run build` inside the frontend folder.",
+        i18n.error_message(
+            lang(),
+            "Frontend not built yet. Run `npm install && npm run build` inside the frontend folder.",
+        ),
         status=200,
     )
 

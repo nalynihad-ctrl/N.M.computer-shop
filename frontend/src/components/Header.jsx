@@ -4,11 +4,14 @@ import { MagnifyingGlass, Moon, ShoppingCart, Sun, User } from "@phosphor-icons/
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { useLanguage } from "../context/LanguageContext";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 export default function Header() {
   const { count } = useCart();
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -30,7 +33,7 @@ export default function Header() {
       <div className="header-row container">
         <button
           className="hamburger"
-          aria-label="Menu"
+          aria-label={t("a11y.menu")}
           onClick={() => setMenuOpen((v) => !v)}
         >
           <span />
@@ -46,21 +49,22 @@ export default function Header() {
         <form className={`search-form ${searchOpen ? "open" : ""}`} onSubmit={submitSearch}>
           <input
             type="search"
-            placeholder="Search products, brands, categories…"
+            placeholder={t("search.placeholder")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search products"
+            aria-label={t("a11y.searchProducts")}
           />
-          <button type="submit" className="btn-icon" aria-label="Search">
+          <button type="submit" className="btn-icon" aria-label={t("a11y.search")}>
             <MagnifyingGlass size={18} weight="light" />
           </button>
         </form>
 
         <nav className="header-actions">
+          <LanguageSwitcher />
           <button
             className="btn-icon theme-toggle"
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? t("a11y.switchToLight") : t("a11y.switchToDark")}
+            title={theme === "dark" ? t("a11y.switchToLight") : t("a11y.switchToDark")}
             onClick={toggleTheme}
           >
             {theme === "dark" ? (
@@ -71,15 +75,19 @@ export default function Header() {
           </button>
           <button
             className="btn-icon mobile-search-only"
-            aria-label="Toggle search"
+            aria-label={t("a11y.toggleSearch")}
             onClick={() => setSearchOpen((v) => !v)}
           >
             <MagnifyingGlass size={20} weight="light" />
           </button>
-          <Link to={profileLink} className="btn-icon" aria-label="Account">
+          <Link to={profileLink} className="btn-icon" aria-label={t("a11y.account")}>
             <User size={20} weight="light" />
           </Link>
-          <Link to="/cart" className="btn-icon cart-btn" aria-label={`Cart, ${count} items`}>
+          <Link
+            to="/cart"
+            className="btn-icon cart-btn"
+            aria-label={t("a11y.cartWithCount", { count })}
+          >
             <ShoppingCart size={20} weight="light" />
             {count > 0 && <span className="cart-badge">{count}</span>}
           </Link>
@@ -88,13 +96,16 @@ export default function Header() {
 
       {menuOpen && (
         <nav className="mobile-menu container">
-          <Link to="/" onClick={() => setMenuOpen(false)}>Home</Link>
-          <Link to="/products" onClick={() => setMenuOpen(false)}>All Products</Link>
-          <Link to="/cart" onClick={() => setMenuOpen(false)}>Shopping Cart</Link>
-          <Link to={profileLink} onClick={() => setMenuOpen(false)}>My Account</Link>
-          <Link to="/orders" onClick={() => setMenuOpen(false)}>My Orders</Link>
-          <Link to="/about" onClick={() => setMenuOpen(false)}>About Us</Link>
-          <Link to="/contact" onClick={() => setMenuOpen(false)}>Contact</Link>
+          <div className="lang-mobile-slot">
+            <LanguageSwitcher />
+          </div>
+          <Link to="/" onClick={() => setMenuOpen(false)}>{t("nav.home")}</Link>
+          <Link to="/products" onClick={() => setMenuOpen(false)}>{t("nav.allProducts")}</Link>
+          <Link to="/cart" onClick={() => setMenuOpen(false)}>{t("nav.cart")}</Link>
+          <Link to={profileLink} onClick={() => setMenuOpen(false)}>{t("nav.account")}</Link>
+          <Link to="/orders" onClick={() => setMenuOpen(false)}>{t("nav.orders")}</Link>
+          <Link to="/about" onClick={() => setMenuOpen(false)}>{t("nav.about")}</Link>
+          <Link to="/contact" onClick={() => setMenuOpen(false)}>{t("nav.contact")}</Link>
         </nav>
       )}
     </header>

@@ -1,59 +1,53 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { useLanguage } from "../context/LanguageContext";
 
+// Presentation only. The words live in the catalogs, matched to this array by
+// index, so a language switch re-labels the slides without re-laying them out.
 const BANNERS = [
   {
     id: 1,
-    title: "Build Your Dream PC",
-    subtitle: "Premium parts for the ultimate gaming rig",
     image: "/uploads/case.svg",
-    cta: "Shop Components",
     ctaTo: "/products",
     color: "radial-gradient(1100px 520px at 12% 0%, rgba(53,184,212,0.28), transparent 60%), linear-gradient(160deg, rgba(53,184,212,0.08), transparent 50%), #0b1119",
   },
   {
     id: 2,
-    title: "Latest NVIDIA Graphics Cards",
-    subtitle: "RTX 50 series now in stock",
     image: "/uploads/gpu.svg",
-    cta: "Shop GPUs",
+    // A canonical category key, so this link resolves in every language.
     ctaTo: "/category/GPUs",
     color: "radial-gradient(1100px 520px at 88% 10%, rgba(53,184,212,0.34), transparent 62%), linear-gradient(200deg, rgba(53,184,212,0.1), transparent 55%), #0b1119",
   },
   {
     id: 3,
-    title: "Gaming Setup Sale",
-    subtitle: "Keyboards, mice, headsets and more. Up to 20% off",
     image: "/uploads/monitor.svg",
-    cta: "Shop Peripherals",
     ctaTo: "/products",
     color: "radial-gradient(1000px 480px at 22% 100%, rgba(53,184,212,0.24), transparent 60%), radial-gradient(800px 400px at 92% -10%, rgba(31,127,150,0.4), transparent 55%), #0b1119",
   },
   {
     id: 4,
-    title: "Upgrade Your PC Today",
-    subtitle: "New CPUs, memory and storage for faster performance",
     image: "/uploads/cpu.svg",
-    cta: "Upgrade Now",
     ctaTo: "/products",
     color: "radial-gradient(1100px 520px at 82% 0%, rgba(31,127,150,0.32), transparent 60%), linear-gradient(140deg, rgba(53,184,212,0.09), transparent 52%), #0b1119",
   },
 ];
 
 export default function HeroSlider() {
+  const { t } = useLanguage();
   const [index, setIndex] = useState(0);
   const total = BANNERS.length;
+  const copy = t("hero.banners");
 
   useEffect(() => {
-    const t = setInterval(() => setIndex((i) => (i + 1) % total), 6000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setIndex((i) => (i + 1) % total), 6000);
+    return () => clearInterval(timer);
   }, [total]);
 
   const go = (next) => setIndex(((next % total) + total) % total);
 
   return (
-    <section className="hero" aria-label="Promotional banners">
+    <section className="hero" aria-label={t("hero.label")}>
       <div className="hero-slider">
         {BANNERS.map((b, i) => (
           <div
@@ -64,10 +58,10 @@ export default function HeroSlider() {
           >
             <div className="hero-content container">
               <div className="hero-text">
-                <h1>{b.title}</h1>
-                <p>{b.subtitle}</p>
+                <h1>{copy[i]?.title}</h1>
+                <p>{copy[i]?.subtitle}</p>
                 <Link to={b.ctaTo} className="btn btn-light">
-                  {b.cta}
+                  {copy[i]?.cta}
                 </Link>
               </div>
               <div className="hero-image">
@@ -78,10 +72,18 @@ export default function HeroSlider() {
         ))}
       </div>
 
-      <button className="hero-nav prev" aria-label="Previous slide" onClick={() => go(index - 1)}>
+      <button
+        className="hero-nav prev"
+        aria-label={t("a11y.previousSlide")}
+        onClick={() => go(index - 1)}
+      >
         <CaretLeft size={22} weight="regular" />
       </button>
-      <button className="hero-nav next" aria-label="Next slide" onClick={() => go(index + 1)}>
+      <button
+        className="hero-nav next"
+        aria-label={t("a11y.nextSlide")}
+        onClick={() => go(index + 1)}
+      >
         <CaretRight size={22} weight="regular" />
       </button>
 
@@ -90,7 +92,7 @@ export default function HeroSlider() {
           <button
             key={i}
             className={`dot ${i === index ? "active" : ""}`}
-            aria-label={`Go to slide ${i + 1}`}
+            aria-label={t("a11y.goToSlide", { n: i + 1 })}
             onClick={() => setIndex(i)}
           />
         ))}
